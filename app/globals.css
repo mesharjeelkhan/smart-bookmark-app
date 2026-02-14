@@ -1,0 +1,118 @@
+@import url("https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #0a0a0f;
+  --ink-light: #14141e;
+  --ink-muted: #1e1e2e;
+  --acid: #c8f04c;
+  --acid-dim: #a8d030;
+  --ghost: #f0f0f8;
+  --ghost-dim: #a0a0b8;
+  --ghost-faint: #505068;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background-color: var(--ink);
+  color: var(--ghost);
+  font-family: "DM Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--acid);
+  color: var(--ink);
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ink-light);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ghost-faint);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ghost-dim);
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Syne", sans-serif;
+  }
+  .font-mono {
+    font-family: "JetBrains Mono", monospace;
+  }
+}
+
+/* Noise texture overlay */
+.noise::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.4;
+}
+
+/* Glow line at top */
+.glow-line {
+  position: relative;
+}
+
+.glow-line::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--acid),
+    transparent
+  );
+  box-shadow: 0 0 20px var(--acid), 0 0 40px rgba(200, 240, 76, 0.3);
+}
+
+/* Card hover effect */
+.bookmark-card {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bookmark-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(200, 240, 76, 0.04) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.bookmark-card:hover::before {
+  opacity: 1;
+}
+
+.bookmark-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(200, 240, 76, 0.25) !important;
+}
