@@ -13,16 +13,15 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // Fetch initial bookmarks server-side
   const { data: bookmarks } = await supabase
     .from("bookmarks")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("user_id", user!.id)
     .order("created_at", { ascending: false });
 
   return (
     <BookmarkManager
-      user={user}
+      user={user!}
       initialBookmarks={bookmarks || []}
     />
   );
