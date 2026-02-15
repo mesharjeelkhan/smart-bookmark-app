@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { User } from "@supabase/supabase-js";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import AddBookmarkForm from "./AddBookmarkForm";
 import BookmarkCard from "./BookmarkCard";
 import UserMenu from "./UserMenu";
@@ -25,81 +25,97 @@ export default function BookmarkManager({ user, initialBookmarks }: Props) {
   const [realtimeStatus, setRealtimeStatus] = useState
     "connecting" | "connected" | "disconnected"
   >("connecting");
-  const supabase = createClient();
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
 
-  const handleRealtimeUpdate = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (payload: any) => {
-      if (payload.eventType === "INSERT") {
-        setBookmarks((prev) => {
-          if (prev.some((b: Bookmark) => b.id === payload.new.id)) return prev;
-          return [payload.new as Bookmark, ...prev];
-        });
-      } else if (payload.eventType === "DELETE") {
-        setBookmarks((prev) =>
-          prev.filter((b: Bookmark) => b.id !== payload.old.id)
-        );
-      }
-    },
-    []
-  );
+  const handleRealtimeUpdate = useCallback((payload: any) => {
+    if (payload.eventType === "INSERT") {
+      setBookmarks((prev) => {
+        if (prev.some((b) => b.id === payload.new.id)) return prev;
+        return [payload.new, ...prev];
+      });
+    } else if (payload.eventType === "DELETE") {
+      setBookmarks((prev) => prev.filter((b) => b.id !== payload.old.id));
+    }
+  }, []);
 
   useEffect(() => {
-    const channel = supabase
-      .channel(`bookmarks:${user.id}`)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .on("postgres_changes" as any, {
-        event: "*",
-        schema: "public",
-        table: "bookmarks",
-        filter: `user_id=eq.${user.id}`,
-      }, handleRealtimeUpdate)
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setRealtimeStatus("connected");
-        } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
-          setRealtimeStatus("disconnected");
-        }
-      });
+    let channel: any;
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user.id, supabase, handleRealtimeUpdate]);
-
-  const addBookmark = async (url: string, title: string) => {
-    const { data, error } = await supabase
-      .from("bookmarks")
-      .insert([{ url, title, user_id: user.id }])
-      .select()
-      .single();
-
-    if (!error && data) {
-      setBookmarks((prev) => {
-        if (prev.some((b) => b.id === data.id)) return prev;
-        return [data, ...prev];
-      });
+    try {
+      channel = supabase
+        .channel("bookmarks-changes")
+        .on(
+          "postgres_changes" as any,
+          {
+            event: "*",
+            schema: "public",
+            table: "bookmarks",
+            filter: `user_id=eq.${user.id}`,
+          },
+          handleRealtimeUpdate
+        )
+        .subscribe((status: string) => {
+          if (status === "SUBSCRIBED") {
+            setRealtimeStatus("connected");
+          } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
+            setRealtimeStatus("disconnected");
+          }
+        });
+    } catch (err) {
+      console.error("Realtime subscription error:", err);
+      setRealtimeStatus("disconnected");
     }
 
-    return { error };
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [user.id, handleRealtimeUpdate]);
+
+  const addBookmark = async (url: string, title: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("bookmarks")
+        .insert([{ url, title, user_id: user.id }])
+        .select()
+        .single();
+
+      if (!error && data) {
+        setBookmarks((prev) => {
+          if (prev.some((b) => b.id === data.id)) return prev;
+          return [data, ...prev];
+        });
+      }
+
+      return { error };
+    } catch (err) {
+      console.error("Add bookmark error:", err);
+      return { error: err as Error };
+    }
   };
 
   const deleteBookmark = async (id: string) => {
     setBookmarks((prev) => prev.filter((b) => b.id !== id));
 
-    const { error } = await supabase
-      .from("bookmarks")
-      .delete()
-      .eq("id", id)
-      .eq("user_id", user.id);
-
-    if (error) {
-      const { data } = await supabase
+    try {
+      const { error } = await supabase
         .from("bookmarks")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-      if (data) setBookmarks(data);
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        const { data } = await supabase
+          .from("bookmarks")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+        if (data) setBookmarks(data);
+      }
+    } catch (err) {
+      console.error("Delete bookmark error:", err);
     }
   };
 
@@ -123,10 +139,16 @@ export default function BookmarkManager({ user, initialBookmarks }: Props) {
               }}
             >
               <svg width="16" height="16" viewBox="0 0 28 28" fill="none" className="text-ink">
-                <path d="M7 4H21C21.5523 4 22 4.44772 22 5V25L14 20L6 25V5C6 4.44772 6.44772 4 7 4Z" fill="currentColor" />
+                <path
+                  d="M7 4H21C21.5523 4 22 4.44772 22 5V25L14 20L6 25V5C6 4.44772 6.44772 4 7 4Z"
+                  fill="currentColor"
+                />
               </svg>
             </div>
-            <span className="font-display font-bold text-ghost" style={{ fontWeight: 700, letterSpacing: "-0.02em" }}>
+            <span
+              className="font-display font-bold text-ghost"
+              style={{ fontWeight: 700, letterSpacing: "-0.02em" }}
+            >
               Markd
             </span>
           </div>
@@ -217,8 +239,17 @@ function EmptyState() {
         className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
         style={{ background: "rgba(200, 240, 76, 0.06)" }}
       >
-        <svg width="22" height="22" viewBox="0 0 28 28" fill="none" style={{ color: "var(--acid)", opacity: 0.5 }}>
-          <path d="M7 4H21C21.5523 4 22 4.44772 22 5V25L14 20L6 25V5C6 4.44772 6.44772 4 7 4Z" fill="currentColor" />
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 28 28"
+          fill="none"
+          style={{ color: "var(--acid)", opacity: 0.5 }}
+        >
+          <path
+            d="M7 4H21C21.5523 4 22 4.44772 22 5V25L14 20L6 25V5C6 4.44772 6.44772 4 7 4Z"
+            fill="currentColor"
+          />
         </svg>
       </div>
       <p className="text-sm font-medium text-ghost-dim mb-1">No bookmarks yet</p>
